@@ -400,12 +400,26 @@ export default function FeedScreen() {
                         return;
                       }
 
-                      const ok = await vote(item.id, userId);
-                      if (!ok) {
-                        Alert.alert(
-                          "Voto não permitido",
-                          "Você já votou neste problema."
-                        );
+                      const result = await vote(item.id, userId);
+
+                      if (!result.ok) {
+                        if (result.reason === "already-voted") {
+                          Alert.alert(
+                            "Voto não permitido",
+                            "Você já votou neste problema."
+                          );
+                        } else if (result.reason === "missing-user") {
+                          Alert.alert(
+                            "Atenção",
+                            "Usuário não identificado para votar."
+                          );
+                        } else {
+                          Alert.alert(
+                            "Erro",
+                            "Problema não encontrado para receber voto."
+                          );
+                        }
+                        return;
                       }
                     }}
                   >

@@ -195,7 +195,12 @@ export default function NewProblemScreen() {
   };
 
   const submit = async (data: ProblemInput) => {
-    await addProblem(data);
+    const result = await addProblem(data);
+
+    if (!result.ok) {
+      Alert.alert("Erro", result.message);
+      return;
+    }
 
     Alert.alert("Sucesso!", "Problema salvo no aparelho.");
 

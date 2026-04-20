@@ -16,19 +16,9 @@ export async function loadStoredProblems(): Promise<Problem[]> {
 }
 
 export async function saveStoredProblems(problems: Problem[]): Promise<void> {
-  try {
-    await AsyncStorage.setItem(PROBLEMS_KEY, JSON.stringify(problems));
-  } catch (error) {
-    console.error('Erro ao salvar problemas:', error);
-    throw error;
-  }
+  await AsyncStorage.setItem(PROBLEMS_KEY, JSON.stringify(problems));
 }
 
 export async function clearStoredProblems(): Promise<void> {
-  try {
-    await AsyncStorage.removeItem(PROBLEMS_KEY);
-  } catch (error) {
-    console.error('Erro ao limpar problemas:', error);
-    throw error;
-  }
+  await AsyncStorage.removeItem(PROBLEMS_KEY);
 }

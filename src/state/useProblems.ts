@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Problem } from '../domain/problem';
+import { Problem, ProblemStatus } from '../domain/problem';
 import { ProblemInput } from '../domain/problemSchema';
 import {
   clearStoredProblems,
@@ -8,19 +8,27 @@ import {
 } from '../services/problemsStorage';
 import { createProblem } from '../utils/problem';
 
+type AddProblemResult =
+  | { ok: true; problem: Problem }
+  | { ok: false; message: string };
+
 type VoteResult =
   | { ok: true }
   | { ok: false; reason: 'missing-user' | 'already-voted' | 'not-found' };
+
+type SetStatusResult =
+  | { ok: true }
+  | { ok: false; reason: 'not-found' };
 
 type Store = {
   problems: Problem[];
   loaded: boolean;
   load: () => Promise<void>;
-  persist: () => Promise<void>;
-  addProblem: (input: ProblemInput) => Promise<Problem | null>;
+  persist: () => Promise<{ ok: true } | { ok: false; message: string }>;
+  addProblem: (input: ProblemInput) => Promise<AddProblemResult>;
   vote: (id: string, userId?: string | null) => Promise<VoteResult>;
-  setStatus: (id: string, status: Problem['status']) => Promise<boolean>;
-  clearAll: () => Promise<void>;
+  setStatus: (id: string, status: ProblemStatus) => Promise<SetStatusResult>;
+  clearAll: () => Promise<{ ok: true } | { ok: false; message: string }>;
 };
 
 export const useProblems = create<Store>((set, get) => ({
@@ -33,72 +41,98 @@ export const useProblems = create<Store>((set, get) => ({
   },
 
   async persist() {
-    await saveStoredProblems(get().problems);
+    try {
+      await saveStoredProblems(get().problems);
+      return { ok: true };
+    } catch (error) {
+      console.error('Erro ao persistir problemas:', error);
+      return { ok: false, message: 'Não foi possível salvar os problemas.' };
+    }
   },
 
   async addProblem(input) {
     try {
-      const newItem = await createProblem(input);
-      const updated = [newItem, ...get().problems];
-      set({ problems: updated });
+      const newProblem = await createProblem(input);
+      const updated = [newProblem, ...get().problems];
+
       await saveStoredProblems(updated);
-      return newItem;
+      set({ problems: updated });
+
+      return { ok: true, problem: newProblem };
     } catch (error) {
       console.error('Erro ao adicionar problema:', error);
-      return null;
+      return { ok: false, message: 'Não foi possível adicionar o problema.' };
     }
   },
 
   async vote(id, userId) {
-    if (!userId) {
-      return { ok: false, reason: 'missing-user' };
-    }
+    try {
+      if (!userId) {
+        return { ok: false, reason: 'missing-user' };
+      }
 
-    const current = get().problems;
-    const target = current.find((item) => item.id === id);
+      const currentProblems = get().problems;
+      const target = currentProblems.find((item) => item.id === id);
 
-    if (!target) {
+      if (!target) {
+        return { ok: false, reason: 'not-found' };
+      }
+
+      if (target.votedBy.includes(userId)) {
+        return { ok: false, reason: 'already-voted' };
+      }
+
+      const updated = currentProblems.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              votes: item.votes + 1,
+              votedBy: [...item.votedBy, userId],
+            }
+          : item
+      );
+
+      await saveStoredProblems(updated);
+      set({ problems: updated });
+
+      return { ok: true };
+    } catch (error) {
+      console.error('Erro ao votar no problema:', error);
       return { ok: false, reason: 'not-found' };
     }
-
-    if (target.votedBy.includes(userId)) {
-      return { ok: false, reason: 'already-voted' };
-    }
-
-    const updated = current.map((item) =>
-      item.id === id
-        ? {
-            ...item,
-            votes: item.votes + 1,
-            votedBy: [...item.votedBy, userId],
-          }
-        : item
-    );
-
-    set({ problems: updated });
-    await saveStoredProblems(updated);
-
-    return { ok: true };
   },
 
   async setStatus(id, status) {
-    const current = get().problems;
-    const exists = current.some((item) => item.id === id);
+    try {
+      const currentProblems = get().problems;
+      const exists = currentProblems.some((item) => item.id === id);
 
-    if (!exists) return false;
+      if (!exists) {
+        return { ok: false, reason: 'not-found' };
+      }
 
-    const updated = current.map((item) =>
-      item.id === id ? { ...item, status } : item
-    );
+      const updated = currentProblems.map((item) =>
+        item.id === id ? { ...item, status } : item
+      );
 
-    set({ problems: updated });
-    await saveStoredProblems(updated);
+      await saveStoredProblems(updated);
+      set({ problems: updated });
 
-    return true;
+      return { ok: true };
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error);
+      return { ok: false, reason: 'not-found' };
+    }
   },
 
   async clearAll() {
-    set({ problems: [] });
-    await clearStoredProblems();
+    try {
+      await clearStoredProblems();
+      set({ problems: [] });
+      return { ok: true };
+    } catch (error) {
+      console.error('Erro ao limpar problemas:', error);
+      return { ok: false, message: 'Não foi possível limpar os problemas.' };
+    }
   },
 }));

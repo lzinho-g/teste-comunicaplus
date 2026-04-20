@@ -20,8 +20,19 @@ export function isValidProblem(raw: unknown): raw is Problem {
     item.status === 'Aberto' ||
     item.status === 'Em andamento' ||
     item.status === 'Resolvido';
+  const addressOk =
+    item.address === undefined || typeof item.address === 'string';
 
-  return latOk && lngOk && idOk && votesOk && votedByOk && createdAtOk && statusOk;
+  return (
+    latOk &&
+    lngOk &&
+    idOk &&
+    votesOk &&
+    votedByOk &&
+    createdAtOk &&
+    statusOk &&
+    addressOk
+  );
 }
 
 export function sanitizeLoadedProblems(raw: unknown): Problem[] {

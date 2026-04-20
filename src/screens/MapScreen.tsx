@@ -1,18 +1,25 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useFeedAddresses } from "../hooks/useFeedAddresses";
 import {
   View,
   StyleSheet,
-  Text,
-  Pressable,
   Animated,
-  LayoutAnimation,
 } from "react-native";
 import MapView, { Marker, Region } from "react-native-maps";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import {
+  NavigationProp,
+  RouteProp,
+  useNavigation,
+  useRoute,
+} from "@react-navigation/native";
+import MapProblemCard from "../components/map/MapProblemCard";
 import * as Location from "expo-location";
 import { useProblems } from "../state/useProblems";
-import type { Problem } from "../state/useProblems";
+import { useAuth } from "../state/useAuth";
+import type { Problem } from "../domain/problem";
 import { theme } from "../theme/theme";
+import { RootTabParamList } from "../navigation/types";
+
 
 import pinBlue from "../../assets/pins/pin-blue.png";
 import pinRed from "../../assets/pins/pin-red.png";
@@ -22,9 +29,10 @@ const FOCUS_LNG_DELTA = 0.003;
 const PIN_OFFSET_FACTOR = 0.25;
 
 export default function MapScreen() {
-  const { problems } = useProblems();
-  const navigation = useNavigation<any>();
-  const route = useRoute<any>();
+  const { problems, vote } = useProblems();
+  const { user } = useAuth();
+  const navigation = useNavigation<NavigationProp<RootTabParamList>>();
+  const route = useRoute<RouteProp<RootTabParamList, "Mapa">>();
   const mapRef = useRef<MapView>(null);
 
   const validProblems = useMemo(
@@ -40,29 +48,11 @@ export default function MapScreen() {
   );
 
   const focusId: string | undefined = route.params?.focusId;
+  const addresses = useFeedAddresses(validProblems);
 
   const [selected, setSelected] = useState<Problem | null>(null);
   const slideAnim = useRef(new Animated.Value(0)).current;
-  const [addresses, setAddresses] = useState<Record<string, string>>({});
   const [expanded, setExpanded] = useState(false);
-
-  // 👉 controle de tamanho da descrição
-  const MAX_DESCRIPTION_LENGTH = 160; // ajuste esse valor se quiser mais/menos texto
-
-  // Descrição original (do problema selecionado)
-  const rawDescription = selected?.description ?? "";
-
-  // Normaliza para remover linhas em branco e espaços exagerados
-  const description = rawDescription
-    .split("\n") // separa por linhas
-    .map((line) => line.trim()) // remove espaços no começo/fim de cada linha
-    .filter((line) => line.length > 0) // remove linhas vazias
-    .join(" "); // junta tudo em uma única frase
-
-  const isLongDescription = description.length > MAX_DESCRIPTION_LENGTH;
-  const shortDescription = isLongDescription
-    ? description.slice(0, MAX_DESCRIPTION_LENGTH) + "..."
-    : description;
 
   // sempre que trocar o problema selecionado, começa recolhido
   useEffect(() => {
@@ -82,22 +72,6 @@ export default function MapScreen() {
     },
     [slideAnim]
   );
-
-  const closeCard = useCallback(() => {
-    Animated.timing(slideAnim, {
-      toValue: 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => {
-      setSelected(null);
-      setExpanded(false);
-    });
-  }, [slideAnim]);
-
-  function handleGoToFeed() {
-    if (!selected) return;
-    navigation.navigate("Feed", { focusId: selected.id });
-  }
 
   const initialRegion = useMemo(() => {
     if (validProblems.length > 0) {
@@ -177,56 +151,18 @@ export default function MapScreen() {
     focusOnProblem(p, 300);
   }, [focusId, validProblems, openCard]);
 
-  useEffect(() => {
-    (async () => {
-      for (const p of validProblems) {
-        if (addresses[p.id]) continue;
-
-        try {
-          const results = await Location.reverseGeocodeAsync({
-            latitude: p.latitude,
-            longitude: p.longitude,
-          });
-
-          if (results && results.length > 0) {
-            const r = results[0];
-
-            const streetPart =
-              r.street && r.name
-                ? `${r.street}, ${r.name}`
-                : r.street || r.name || "";
-            const districtPart = r.district || "";
-            const cityPart = r.city || r.subregion || "";
-
-            const pieces = [streetPart, districtPart, cityPart].filter(
-              (t) => t && t.trim().length > 0
-            );
-
-            const formatted = pieces.join(" - ");
-
-            if (formatted) {
-              setAddresses((prev) => ({
-                ...prev,
-                [p.id]: formatted,
-              }));
-            }
-          }
-        } catch {
-          // ignora e usa fallback
-        }
-      }
-    })();
-  }, [validProblems, addresses]);
-
   function getPrettyAddress(p: Problem): string {
-    const addrFromMap = addresses[p.id];
-    if (addrFromMap && addrFromMap.trim().length > 0) {
-      return addrFromMap;
-    }
-    if ((p as any).neighborhood && (p as any).neighborhood.trim().length > 0) {
-      return `${(p as any).neighborhood}, ${p.city}`;
-    }
-    return p.city;
+  const addrFromMap = addresses[p.id];
+
+  if (addrFromMap && addrFromMap.trim().length > 0) {
+    return addrFromMap;
+  }
+
+  if (p.neighborhood && p.neighborhood.trim().length > 0) {
+    return `${p.neighborhood}, ${p.city}`;
+  }
+
+  return p.city;
   }
 
   const coordsMap = useMemo(() => {
@@ -321,66 +257,22 @@ export default function MapScreen() {
             },
           ]}
         >
-          <Text style={styles.cardTitle}>
-            {selected.title} • {selected.votes} voto
-            {selected.votes === 1 ? "" : "s"}
-          </Text>
+          <MapProblemCard
+            problem={selected}
+            address={getPrettyAddress(selected)}
+            isExpanded={expanded}
+            onToggleExpand={() => setExpanded((prev) => !prev)}
+            onOpenFeed={() =>
+              navigation.navigate("Feed", { focusId: selected.id })
+            }
+            onVote={async () => {
+              const userId = user?.email ?? null;
 
-          {String(selected.status).toLowerCase() === "aberto" && (
-            <View style={styles.statusBadge}>
-              <Text style={styles.statusBadgeText}>Aberto</Text>
-            </View>
-          )}
+              if (!userId) return;
 
-          <Text style={styles.cardInfo}>
-            <Text style={{ fontWeight: "700" }}>Categoria: </Text>
-            {selected.category}
-          </Text>
-
-          <Text style={styles.cardInfo}>
-            <Text style={{ fontWeight: "700" }}>Endereço: </Text>
-            {getPrettyAddress(selected)}
-          </Text>
-
-          {description ? (
-            <>
-              <Text style={styles.cardDesc}>
-                {expanded || !isLongDescription ? description : shortDescription}
-              </Text>
-
-              {isLongDescription && (
-                <Pressable
-                  onPress={() => {
-                    LayoutAnimation.configureNext(
-                      LayoutAnimation.Presets.easeInEaseOut
-                    );
-                    setExpanded((s) => !s);
-                  }}
-                  style={{ marginTop: 6 }}
-                >
-                  <Text style={styles.moreText}>
-                    {expanded ? "Ver menos" : "Ver mais"}
-                  </Text>
-                </Pressable>
-              )}
-            </>
-          ) : null}
-
-          <View style={styles.row}>
-            <Pressable
-              style={[styles.button, styles.voteBtn]}
-              onPress={handleGoToFeed}
-            >
-              <Text style={styles.buttonText}>Ver no feed</Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.button, styles.closeBtn]}
-              onPress={closeCard}
-            >
-              <Text style={styles.buttonText}>Fechar</Text>
-            </Pressable>
-          </View>
+              await vote(selected.id, userId);
+            }}
+          />
         </Animated.View>
       )}
     </View>
@@ -393,71 +285,9 @@ const styles = StyleSheet.create({
     bottom: 80,
     left: 10,
     right: 10,
-    backgroundColor: theme.colors.surface,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
     shadowColor: "#000",
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: theme.colors.text,
-    marginBottom: 4,
-  },
-  cardInfo: {
-    fontSize: 13,
-    color: theme.colors.textMuted,
-    marginBottom: 4,
-  },
-  cardDesc: {
-    fontSize: 13,
-    color: theme.colors.text,
-    marginTop: 6,
-  },
-  moreText: {
-    color: theme.colors.primary,
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  statusBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginTop: 6,
-    marginBottom: 4,
-  },
-  statusBadgeText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 10,
-    marginTop: 12,
-  },
-  button: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  voteBtn: {
-    backgroundColor: theme.colors.primary,
-  },
-  closeBtn: {
-    backgroundColor: theme.colors.danger,
-  },
-  buttonText: {
-    color: "#fff",
-    fontWeight: "700",
   },
 });

@@ -1,564 +1,377 @@
-﻿import React, { useState, useRef } from "react";
+﻿import React, { useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  Pressable,
-  Image,
   Alert,
+  Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
   TouchableWithoutFeedback,
-  Keyboard,
-} from "react-native";
-import { useForm, Controller } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as ImagePicker from "expo-image-picker";
-import * as Location from "expo-location";
-import MapView, { Marker, MapPressEvent, Region } from "react-native-maps";
-import { problemSchema, ProblemInput } from "../domain/problemSchema";
-import { useProblems } from "../state/useProblems";
-import { theme } from "../theme/theme";
+  View,
+} from 'react-native';
+import { Controller } from 'react-hook-form';
+import { Picker } from '@react-native-picker/picker';
+import MapView, { Marker } from 'react-native-maps';
 
-const INITIAL_COORD = { latitude: -27.5953, longitude: -48.5485 };
-const INITIAL_REGION: Region = {
-  ...INITIAL_COORD,
-  latitudeDelta: 0.01,
-  longitudeDelta: 0.01,
-};
+import { useProblemForm } from '../hooks/useProblemForm';
+import { useProblemImage } from '../hooks/useProblemImage';
+import { useProblemLocation } from '../hooks/useProblemLocation';
+import { ProblemInput } from '../domain/problemSchema';
 
-const CATEGORY_OPTIONS = ["Buraco", "Iluminação", "Lixo", "Segurança", "Outros"];
-
-// tipo para guardar também width/height da foto
-type PickedImage = {
-  uri: string;
-  width: number;
-  height: number;
-};
+const CATEGORIES = [
+  'Buraco',
+  'Iluminação',
+  'Lixo',
+  'Segurança',
+  'Outros',
+] as const;
 
 export default function NewProblemScreen() {
-  const [coord, setCoord] = useState(INITIAL_COORD);
-  const [region, setRegion] = useState<Region>(INITIAL_REGION);
-  const [image, setImage] = useState<PickedImage | null>(null);
-  const [categoryOpen, setCategoryOpen] = useState(false);
-
-  // altura dinâmica da descrição
-  const [descHeight, setDescHeight] = useState(110);
-
-  // ref do scroll para poder dar scrollTo programaticamente
   const scrollRef = useRef<ScrollView | null>(null);
 
-  // posições (Y) de cada seção do formulário
   const sectionPositions = useRef({
     title: 0,
     category: 0,
     city: 0,
     neighborhood: 0,
     description: 0,
+    location: 0,
+    image: 0,
   });
+
+  const [descHeight, setDescHeight] = useState(110);
 
   const {
     control,
     handleSubmit,
     setValue,
-    reset,
+    resetFormValues,
     formState: { errors },
-  } = useForm<ProblemInput>({
-    resolver: zodResolver(problemSchema),
-    defaultValues: {
-      title: "",
-      category: "Buraco",
-      city: "",
-      neighborhood: "",
-      description: "",
-      latitude: INITIAL_COORD.latitude,
-      longitude: INITIAL_COORD.longitude,
-      image: undefined,
-    },
+    submitProblem,
+  } = useProblemForm();
+
+  const imageState = useProblemImage((uri) => setValue('image', uri));
+  const locationState = useProblemLocation((latitude, longitude) => {
+    setValue('latitude', latitude);
+    setValue('longitude', longitude);
   });
 
-  const { addProblem } = useProblems();
-
-  const onMapPress = (e: MapPressEvent) => {
-    const { latitude, longitude } = e.nativeEvent.coordinate;
-    const newCoord = { latitude, longitude };
-    setCoord(newCoord);
-    setRegion((prev) => ({
-      ...prev,
-      latitude,
-      longitude,
-    }));
-    setValue("latitude", latitude);
-    setValue("longitude", longitude);
-  };
-
-  const useMyLocation = async () => {
-    const perm = await Location.requestForegroundPermissionsAsync();
-
-    if (!perm.granted) {
-      return Alert.alert(
-        "Permissão necessária",
-        "Ative o acesso à localização para usar esse recurso."
-      );
-    }
-
-    const pos = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.High,
-    });
-
-    const { latitude, longitude } = pos.coords;
-    const newCoord = { latitude, longitude };
-
-    setCoord(newCoord);
-    setRegion((prev) => ({
-      ...prev,
-      latitude,
-      longitude,
-    }));
-
-    setValue("latitude", latitude);
-    setValue("longitude", longitude);
-  };
-
-  // 📷 Tirar foto (câmera)
-  const takePhoto = async () => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted)
-      return Alert.alert("Permissão", "Ative o acesso à câmera.");
-
-    const img = await ImagePicker.launchCameraAsync({
-      mediaTypes: ["images"], // 👈 API nova (evita o warning do MediaTypeOptions)
-      quality: 0.6,
-    });
-
-    if (!img.canceled) {
-      const asset = img.assets[0];
-      const uri = asset.uri;
-      const width = asset.width ?? 1;
-      const height = asset.height ?? 1;
-
-      setImage({ uri, width, height });
-      setValue("image", uri);
-    }
-  };
-
-  // 🖼 Escolher da galeria
-  const pickFromGallery = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted)
-      return Alert.alert("Permissão", "Ative o acesso à galeria.");
-
-    const img = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"], // 👈 aqui também, em vez de MediaTypeOptions.Images
-      quality: 0.7,
-    });
-
-    if (!img.canceled) {
-      const asset = img.assets[0];
-      const uri = asset.uri;
-      const width = asset.width ?? 1;
-      const height = asset.height ?? 1;
-
-      setImage({ uri, width, height });
-      setValue("image", uri);
-    }
-  };
-
-  // 🔹 helper para resetar tudo (usado no Enviar e no Cancelar)
-  const resetForm = () => {
-    reset({
-      title: "",
-      category: "Buraco",
-      city: "",
-      neighborhood: "",
-      description: "",
-      latitude: INITIAL_COORD.latitude,
-      longitude: INITIAL_COORD.longitude,
-      image: undefined,
-    });
-
-    setImage(null);
-    setCoord(INITIAL_COORD);
-    setRegion(INITIAL_REGION);
-    setCategoryOpen(false);
+  const resetAll = () => {
+    resetFormValues();
+    imageState.clearImage();
+    locationState.resetLocation();
     setDescHeight(110);
   };
 
-  // ao cancelar, além de resetar o formulário, rolar para o topo
   const handleCancel = () => {
-    resetForm();
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({ y: 0, animated: true });
+    resetAll();
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  };
+
+  const onSubmit = async (data: ProblemInput) => {
+    const ok = await submitProblem(data);
+
+    if (ok) {
+      resetAll();
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
     }
   };
 
-  const submit = async (data: ProblemInput) => {
-    const result = await addProblem(data);
-
-    if (!result.ok) {
-      Alert.alert("Erro", result.message);
-      return;
-    }
-
-    Alert.alert("Sucesso!", "Problema salvo no aparelho.");
-
-    resetForm();
-  };
-
-  // quando o formulário for inválido, rolar até o primeiro campo com erro
-  const onInvalid = (formErrors: any) => {
+  const onInvalid = () => {
     let targetY = 0;
 
-    if (formErrors.title) {
-      targetY = sectionPositions.current.title;
-    } else if (formErrors.category) {
-      targetY = sectionPositions.current.category;
-    } else if (formErrors.city) {
-      targetY = sectionPositions.current.city;
-    } else if (formErrors.neighborhood) {
-      targetY = sectionPositions.current.neighborhood;
-    } else if (formErrors.description) {
-      targetY = sectionPositions.current.description;
-    }
+    if (errors.title) targetY = sectionPositions.current.title;
+    else if (errors.category) targetY = sectionPositions.current.category;
+    else if (errors.city) targetY = sectionPositions.current.city;
+    else if (errors.neighborhood) targetY = sectionPositions.current.neighborhood;
+    else if (errors.description) targetY = sectionPositions.current.description;
+    else if (errors.latitude || errors.longitude)
+      targetY = sectionPositions.current.location;
+    else if (errors.image) targetY = sectionPositions.current.image;
 
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({
-        y: Math.max(targetY - 16, 0),
-        animated: true,
-      });
-    }
+    scrollRef.current?.scrollTo({
+      y: Math.max(targetY - 16, 0),
+      animated: true,
+    });
+
+    Alert.alert('Campos inválidos', 'Revise os campos obrigatórios destacados.');
   };
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: theme.colors.bg }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.select({ ios: 80, android: 0 })}
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView
           ref={scrollRef}
-          contentContainerStyle={{ padding: 12, paddingBottom: 32 }}
+          contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.screenTitle}>Registrar problema</Text>
+          <Text style={styles.title}>Registrar problema</Text>
+          <Text style={styles.subtitle}>
+            Preencha as informações abaixo para cadastrar uma ocorrência.
+          </Text>
 
-          {/* BLOCO TÍTULO */}
+          {/* TÍTULO */}
           <View
             onLayout={(e) => {
               sectionPositions.current.title = e.nativeEvent.layout.y;
             }}
+            style={styles.section}
           >
-            <Text style={styles.label}>
-              Título <Text style={styles.required}>*</Text>
-            </Text>
-            <Text style={styles.helper}>
-              Informe um título claro (mínimo 5 caracteres).
-            </Text>
+            <Text style={styles.label}>Título</Text>
             <Controller
               control={control}
               name="title"
-              render={({ field: { value, onChange } }) => (
+              render={({ field: { onChange, onBlur, value } }) => (
                 <TextInput
-                  placeholder="Ex: Buraco perigoso na Rua A"
-                  placeholderTextColor={theme.colors.textMuted}
-                  style={styles.input}
+                  style={[styles.input, errors.title && styles.inputError]}
+                  placeholder="Ex.: Buraco grande na rua principal"
                   value={value}
                   onChangeText={onChange}
-                  returnKeyType="next"
-                  maxLength={50}
+                  onBlur={onBlur}
+                  maxLength={80}
                 />
               )}
             />
             {errors.title && (
-              <Text style={styles.error}>{errors.title.message}</Text>
+              <Text style={styles.errorText}>{errors.title.message}</Text>
             )}
           </View>
 
-          {/* BLOCO CATEGORIA */}
+          {/* CATEGORIA */}
           <View
-            style={{ marginTop: 8 }}
             onLayout={(e) => {
               sectionPositions.current.category = e.nativeEvent.layout.y;
             }}
+            style={styles.section}
           >
-            <Text style={styles.label}>Categorias</Text>
-            <Text style={styles.helper}>
-              Toque para alterar a categoria, se necessário.
-            </Text>
-            <Controller
-              control={control}
-              name="category"
-              render={({ field: { value, onChange } }) => (
-                <View style={{ marginTop: 6 }}>
-                  <Pressable
-                    style={[styles.input, styles.categoryInput]}
-                    onPress={() => setCategoryOpen((prev) => !prev)}
+            <Text style={styles.label}>Categoria</Text>
+            <View style={[styles.pickerWrapper, errors.category && styles.inputError]}>
+              <Controller
+                control={control}
+                name="category"
+                render={({ field: { onChange, value } }) => (
+                  <Picker
+                    selectedValue={value}
+                    onValueChange={onChange}
+                    style={styles.picker}
                   >
-                    <Text
-                      style={
-                        value ? styles.inputText : styles.placeholderText
-                      }
-                    >
-                      {value || "Selecione a categoria"}
-                    </Text>
-                    <Text style={styles.categoryChevron}>
-                      {categoryOpen ? "▲" : "▼"}
-                    </Text>
-                  </Pressable>
-
-                  {categoryOpen && (
-                    <View style={styles.dropdown}>
-                      {CATEGORY_OPTIONS.map((cat) => (
-                        <Pressable
-                          key={cat}
-                          style={styles.dropdownItem}
-                          onPress={() => {
-                            onChange(cat);
-                            setCategoryOpen(false);
-                          }}
-                        >
-                          <Text style={styles.dropdownItemText}>{cat}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  )}
-                </View>
-              )}
-            />
+                    {CATEGORIES.map((item) => (
+                      <Picker.Item key={item} label={item} value={item} />
+                    ))}
+                  </Picker>
+                )}
+              />
+            </View>
             {errors.category && (
-              <Text style={styles.error}>{errors.category.message}</Text>
+              <Text style={styles.errorText}>{errors.category.message}</Text>
             )}
           </View>
 
-          {/* BLOCO CIDADE */}
+          {/* CIDADE */}
           <View
-            style={{ marginTop: 14 }}
             onLayout={(e) => {
               sectionPositions.current.city = e.nativeEvent.layout.y;
             }}
+            style={styles.section}
           >
-            <Text style={styles.label}>
-              Cidade <Text style={styles.required}>*</Text>
-            </Text>
-            <Text style={styles.helper}>
-              Informe a cidade (mínimo 5 caracteres).
-            </Text>
+            <Text style={styles.label}>Cidade</Text>
             <Controller
               control={control}
               name="city"
-              render={({ field: { value, onChange } }) => (
+              render={({ field: { onChange, onBlur, value } }) => (
                 <TextInput
-                  placeholder="Ex: Florianópolis"
-                  placeholderTextColor={theme.colors.textMuted}
-                  style={styles.input}
+                  style={[styles.input, errors.city && styles.inputError]}
+                  placeholder="Digite a cidade"
                   value={value}
                   onChangeText={onChange}
-                  returnKeyType="next"
-                  maxLength={50}
+                  onBlur={onBlur}
+                  maxLength={60}
                 />
               )}
             />
             {errors.city && (
-              <Text style={styles.error}>{errors.city.message}</Text>
+              <Text style={styles.errorText}>{errors.city.message}</Text>
             )}
           </View>
 
-          {/* BLOCO BAIRRO */}
+          {/* BAIRRO */}
           <View
-            style={{ marginTop: 14 }}
             onLayout={(e) => {
               sectionPositions.current.neighborhood = e.nativeEvent.layout.y;
             }}
+            style={styles.section}
           >
-            <Text style={styles.label}>
-              Bairro <Text style={styles.required}>*</Text>
-            </Text>
-            <Text style={styles.helper}>
-              Informe o bairro (mínimo 5 caracteres).
-            </Text>
+            <Text style={styles.label}>Bairro</Text>
             <Controller
               control={control}
               name="neighborhood"
-              render={({ field: { value, onChange } }) => (
+              render={({ field: { onChange, onBlur, value } }) => (
                 <TextInput
-                  placeholder="Ex: Centro"
-                  placeholderTextColor={theme.colors.textMuted}
-                  style={styles.input}
-                  value={value ?? ""}
+                  style={[styles.input, errors.neighborhood && styles.inputError]}
+                  placeholder="Digite o bairro"
+                  value={value}
                   onChangeText={onChange}
-                  returnKeyType="next"
-                  maxLength={50}
+                  onBlur={onBlur}
+                  maxLength={60}
                 />
               )}
             />
             {errors.neighborhood && (
-              <Text style={styles.error}>{errors.neighborhood.message}</Text>
+              <Text style={styles.errorText}>{errors.neighborhood.message}</Text>
             )}
           </View>
 
-          {/* BLOCO DESCRIÇÃO */}
+          {/* DESCRIÇÃO */}
           <View
-            style={{ marginTop: 14 }}
             onLayout={(e) => {
               sectionPositions.current.description = e.nativeEvent.layout.y;
             }}
+            style={styles.section}
           >
-            <Text style={styles.label}>
-              Descrição <Text style={styles.required}>*</Text>
-            </Text>
-            <Text style={styles.helper}>
-              Descreva melhor o problema (mínimo 10 caracteres).
-            </Text>
+            <Text style={styles.label}>Descrição</Text>
             <Controller
               control={control}
               name="description"
-              render={({ field: { value = "", onChange } }) => (
+              render={({ field: { onChange, onBlur, value } }) => (
                 <>
                   <TextInput
-                    placeholder="Explique melhor o problema e riscos..."
-                    placeholderTextColor={theme.colors.textMuted}
                     style={[
-                      styles.input,
-                      styles.textarea,
-                      {
-                        minHeight: 110,
-                        height: descHeight,
-                        textAlignVertical: "top",
-                      },
+                      styles.textArea,
+                      { height: descHeight },
+                      errors.description && styles.inputError,
                     ]}
-                    multiline
+                    placeholder="Descreva o problema com o máximo de detalhes possível"
                     value={value}
                     onChangeText={onChange}
+                    onBlur={onBlur}
+                    multiline
+                    textAlignVertical="top"
+                    maxLength={500}
                     onContentSizeChange={(e) => {
-                      const h = e.nativeEvent.contentSize.height;
-                      // cresce suave até um limite
-                      if (h < 260) {
-                        setDescHeight(Math.max(110, h + 4));
-                      }
+                      const nextHeight = Math.min(
+                        220,
+                        Math.max(110, e.nativeEvent.contentSize.height + 20)
+                      );
+                      setDescHeight(nextHeight);
                     }}
-                    maxLength={100}
-                    returnKeyType="default"
                   />
-                  <Text style={styles.charCount}>
-                    {(value?.length ?? 0)}/100
+                  <Text style={styles.counterText}>
+                    {(value ?? '').length}/500 caracteres
                   </Text>
                 </>
               )}
             />
             {errors.description && (
-              <Text style={styles.error}>{errors.description.message}</Text>
+              <Text style={styles.errorText}>{errors.description.message}</Text>
             )}
           </View>
 
-          {/* INSTRUÇÃO DO MAPA */}
-          <Text
-            style={{
-              textAlign: "left",
-              marginTop: 14,
-              marginBottom: 6,
-              color: theme.colors.text,
-              fontSize: 13,
-              fontWeight: "600",
+          {/* LOCALIZAÇÃO */}
+          <View
+            onLayout={(e) => {
+              sectionPositions.current.location = e.nativeEvent.layout.y;
             }}
+            style={styles.section}
           >
-            Toque no mapa para marcar a localização do problema.
-          </Text>
+            <Text style={styles.label}>Localização</Text>
+            <Text style={styles.helperText}>
+              Toque no mapa para ajustar o ponto da ocorrência.
+            </Text>
 
-          {/* MAPA */}
-          <MapView
-            style={{ height: 220, marginVertical: 10, borderRadius: 10 }}
-            region={region}
-            onRegionChangeComplete={setRegion}
-            onPress={onMapPress}
-          >
-            <Marker
-              coordinate={coord}
-              draggable
-              onDragEnd={(e) => {
-                const c = e.nativeEvent.coordinate;
-                setCoord(c);
-                setRegion((prev) => ({
-                  ...prev,
-                  latitude: c.latitude,
-                  longitude: c.longitude,
-                }));
-                setValue("latitude", c.latitude);
-                setValue("longitude", c.longitude);
-              }}
-            />
-          </MapView>
+            <MapView
+              style={styles.map}
+              region={locationState.region}
+              onPress={locationState.onMapPress}
+            >
+              <Marker coordinate={locationState.coord} />
+            </MapView>
 
-          <Text
-            style={{
-              textAlign: "center",
-              marginBottom: 6,
-              color: theme.colors.text,
-              fontSize: 12,
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={locationState.useMyLocation}
+            >
+              <Text style={styles.secondaryButtonText}>Usar minha localização</Text>
+            </TouchableOpacity>
+
+            {(errors.latitude || errors.longitude) && (
+              <Text style={styles.errorText}>
+                Defina uma localização válida para o problema.
+              </Text>
+            )}
+          </View>
+
+          {/* IMAGEM */}
+          <View
+            onLayout={(e) => {
+              sectionPositions.current.image = e.nativeEvent.layout.y;
             }}
+            style={styles.section}
           >
-            {coord.latitude.toFixed(5)}, {coord.longitude.toFixed(5)}
-          </Text>
+            <Text style={styles.label}>Imagem</Text>
+            <Text style={styles.helperText}>
+              Adicione uma foto para facilitar a identificação do problema.
+            </Text>
 
-          <Pressable
-            style={[styles.btn, styles.btnPrimaryAlone]}
-            onPress={useMyLocation}
-          >
-            <Text style={styles.btnText}>Usar minha localização</Text>
-          </Pressable>
+            {imageState.image ? (
+              <View style={styles.imagePreviewWrapper}>
+                <Image source={{ uri: imageState.image.uri }} style={styles.imagePreview} />
+                <TouchableOpacity
+                  style={styles.removeImageButton}
+                  onPress={imageState.clearImage}
+                >
+                  <Text style={styles.removeImageButtonText}>Remover imagem</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.imagePlaceholder}>
+                <Text style={styles.imagePlaceholderText}>
+                  Nenhuma imagem selecionada
+                </Text>
+              </View>
+            )}
 
-          {/* FOTO (preview) */}
-          {image && (
-            <View style={styles.imageWrapper}>
-              <Image
-                source={{ uri: image.uri }}
-                style={[
-                  styles.img,
-                  {
-                    aspectRatio:
-                      image.width && image.height
-                        ? image.width / image.height
-                        : 4 / 3,
-                  },
-                ]}
-                resizeMode="contain"
-              />
+            <View style={styles.imageButtonsRow}>
+              <TouchableOpacity
+                style={styles.secondaryButtonHalf}
+                onPress={imageState.takePhoto}
+              >
+                <Text style={styles.secondaryButtonText}>Tirar foto</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.secondaryButtonHalf}
+                onPress={imageState.pickFromGallery}
+              >
+                <Text style={styles.secondaryButtonText}>Escolher da galeria</Text>
+              </TouchableOpacity>
             </View>
-          )}
 
-          {/* AÇÕES DE IMAGEM */}
-          <View style={styles.row}>
-            <Pressable style={[styles.btn, styles.btnDark]} onPress={takePhoto}>
-              <Text style={styles.btnText}>Tirar foto</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.btn, styles.btnDark]}
-              onPress={pickFromGallery}
-            >
-              <Text style={styles.btnText}>Escolher da galeria</Text>
-            </Pressable>
+            {errors.image && (
+              <Text style={styles.errorText}>{errors.image.message}</Text>
+            )}
           </View>
 
-          {/* BOTÕES FINAIS: CANCELAR + ENVIAR */}
-          <View style={styles.buttonRow}>
-            <Pressable
-              style={[styles.btn, styles.btnSecondary]}
-              onPress={handleCancel}
-            >
-              <Text style={styles.btnSecondaryText}>Cancelar</Text>
-            </Pressable>
+          {/* AÇÕES */}
+          <View style={styles.actionsRow}>
+            <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
 
-            <Pressable
-              style={[styles.btn, styles.btnPrimary]}
-              onPress={handleSubmit(submit, onInvalid)}
+            <TouchableOpacity
+              style={styles.submitButton}
+              onPress={handleSubmit(onSubmit, onInvalid)}
             >
-              <Text style={styles.btnText}>Enviar</Text>
-            </Pressable>
+              <Text style={styles.submitButtonText}>Registrar problema</Text>
+            </TouchableOpacity>
           </View>
-
-          <View style={{ height: 24 }} />
         </ScrollView>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
@@ -566,118 +379,173 @@ export default function NewProblemScreen() {
 }
 
 const styles = StyleSheet.create({
-  screenTitle: {
-    fontSize: 18,
-    fontWeight: "800",
+  flex: {
+    flex: 1,
+    backgroundColor: '#F7F8FA',
+  },
+  container: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1E293B',
     marginBottom: 6,
-    color: theme.colors.text,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    marginBottom: 20,
+  },
+  section: {
+    marginBottom: 18,
   },
   label: {
     fontSize: 14,
-    fontWeight: "700",
-    color: theme.colors.text,
+    fontWeight: '600',
+    color: '#334155',
+    marginBottom: 8,
   },
-  required: {
-    color: theme.colors.danger,
+  helperText: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 8,
   },
   input: {
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginTop: 6,
-    backgroundColor: theme.colors.surface,
-    color: theme.colors.text,
-  },
-  categoryInput: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  categoryChevron: {
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     fontSize: 14,
-    color: theme.colors.textMuted,
-    marginLeft: 8,
+    color: '#0F172A',
   },
-  inputText: {
-    color: theme.colors.text,
-  },
-  placeholderText: {
-    color: theme.colors.textMuted,
-  },
-  textarea: {
-    // altura base controlada via state
-  },
-  dropdown: {
-    marginTop: 4,
-    borderRadius: 10,
+  textArea: {
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface,
-    overflow: "hidden",
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 12,
+    fontSize: 14,
+    color: '#0F172A',
   },
-  dropdownItem: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+  inputError: {
+    borderColor: '#DC2626',
   },
-  dropdownItemText: {
-    color: theme.colors.text,
+  errorText: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#DC2626',
   },
-  imageWrapper: {
-    width: "100%",
-    alignItems: "center",
+  counterText: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'right',
+  },
+  pickerWrapper: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  picker: {
+    color: '#0F172A',
+  },
+  map: {
+    height: 220,
+    borderRadius: 16,
+    marginBottom: 10,
+  },
+  secondaryButton: {
+    backgroundColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  secondaryButtonHalf: {
+    flex: 1,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  secondaryButtonText: {
+    color: '#0F172A',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  imagePreviewWrapper: {
+    marginBottom: 10,
+  },
+  imagePreview: {
+    width: '100%',
+    height: 220,
+    borderRadius: 16,
+    backgroundColor: '#E2E8F0',
+  },
+  removeImageButton: {
     marginTop: 10,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
   },
-  img: {
-    width: "100%",
-    maxHeight: 260,
-    borderRadius: 8,
+  removeImageButtonText: {
+    color: '#B91C1C',
+    fontWeight: '600',
   },
-  row: { flexDirection: "row", gap: 10, marginTop: 12 },
-  btn: { flex: 1, padding: 12, borderRadius: 8, alignItems: "center" },
-  btnDark: {
-    backgroundColor: theme.colors.surface,
+  imagePlaceholder: {
+    height: 140,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderStyle: 'dashed',
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
   },
-  // usado no "Usar minha localização", sozinho
-  btnPrimaryAlone: {
-    backgroundColor: theme.colors.primary,
-    marginTop: 12,
+  imagePlaceholderText: {
+    color: '#64748B',
+    fontSize: 14,
   },
-  // usado no par Cancelar + Enviar (sem marginTop)
-  btnPrimary: {
-    backgroundColor: theme.colors.primary,
-  },
-  btnText: { color: "#fff", fontWeight: "700" },
-  error: { color: theme.colors.danger, fontSize: 12, marginTop: 4 },
-  charCount: {
-    fontSize: 11,
-    color: theme.colors.textMuted,
-    textAlign: "right",
-    marginTop: 2,
-  },
-  helper: {
-    fontSize: 11,
-    color: theme.colors.textMuted,
-    marginTop: 2,
-    marginBottom: 4,
-  },
-  buttonRow: {
-    flexDirection: "row",
+  imageButtonsRow: {
+    flexDirection: 'row',
     gap: 10,
-    marginTop: 16,
   },
-  btnSecondary: {
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
   },
-  btnSecondaryText: {
-    color: theme.colors.text,
-    fontWeight: "700",
+  cancelButton: {
+    flex: 1,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#0F172A',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  submitButton: {
+    flex: 1,
+    backgroundColor: '#2563EB',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  submitButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
   },
 });

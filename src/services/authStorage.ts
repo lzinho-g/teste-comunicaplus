@@ -2,10 +2,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { hashPassword } from "../utils/auth";
 
-const AUTH_USER_KEY = "@comunicaplus/auth/user";
-const AUTH_SESSION_KEY = "@comunicaplus/auth/session";
-const AUTH_FIRST_LOGIN_KEY = "@comunicaplus/auth/firstLoginCompleted";
-const LEGACY_AUTH_KEY = "@comunicaplus/auth";
+const AUTH_USER_KEY = 'comunicaplus_auth_user';
+const AUTH_SESSION_KEY = 'comunicaplus_auth_session';
+const FIRST_ACCESS_KEY = 'comunicaplus_first_access';
+const LEGACY_AUTH_KEY = '@comunicaplus/auth';
 
 export type AuthUserRecord = {
   name: string;
@@ -118,11 +118,11 @@ export async function removeAuthSession(): Promise<void> {
 }
 
 export async function saveFirstLoginCompleted(completed: boolean): Promise<void> {
-  await setItem(AUTH_FIRST_LOGIN_KEY, JSON.stringify(completed));
+  await setItem(FIRST_ACCESS_KEY, JSON.stringify(completed));
 }
 
 export async function getFirstLoginCompleted(): Promise<boolean> {
-  const stored = await getItem(AUTH_FIRST_LOGIN_KEY);
+  const stored = await getItem(FIRST_ACCESS_KEY);
 
   if (!stored) {
     return false;
@@ -136,7 +136,7 @@ export async function getFirstLoginCompleted(): Promise<boolean> {
 }
 
 export async function removeFirstLoginCompleted(): Promise<void> {
-  await removeItem(AUTH_FIRST_LOGIN_KEY);
+  await removeItem(FIRST_ACCESS_KEY);
 }
 
 export async function clearAuthStorage(): Promise<void> {

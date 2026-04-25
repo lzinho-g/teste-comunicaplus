@@ -183,7 +183,57 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 
   async loadAuth() {
-    await get().load();
+    console.log("LOAD AUTH: iniciou");
+
+    try {
+      console.log("LOAD AUTH: antes de carregar storage");
+
+      const [session, storedUser, firstLoginCompleted] = await Promise.all([
+        getAuthSession(),
+        getAuthUser(),
+        getFirstLoginCompleted(),
+      ]);
+
+      console.log("LOAD AUTH: storage carregado", {
+        hasSession: Boolean(session),
+        hasUser: Boolean(storedUser),
+        firstLoginCompleted,
+      });
+
+      if (session && storedUser) {
+        console.log("LOAD AUTH: finalizando com sucesso (autenticado)");
+
+        set({
+          user: storedUser,
+          firstLoginCompleted,
+          ...authFlags(true, true),
+        });
+
+        console.log("LOAD AUTH: finalizou");
+        return;
+      }
+
+      console.log("LOAD AUTH: finalizando com sucesso (não autenticado)");
+
+      set({
+        user: null,
+        firstLoginCompleted,
+        ...authFlags(false, true),
+      });
+
+      console.log("LOAD AUTH: finalizou");
+    } catch (error) {
+      console.error("LOAD AUTH: erro", error);
+
+      console.log("LOAD AUTH: antes do set fallback");
+      set({
+        user: null,
+        firstLoginCompleted: false,
+        ...authFlags(false, true),
+      });
+
+      console.log("LOAD AUTH: finalizou com fallback");
+    }
   },
 
   async completeFirstLogin() {

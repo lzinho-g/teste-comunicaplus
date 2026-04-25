@@ -68,6 +68,7 @@ function AuthStack() {
 
 export default function App() {
   const loadProblems = useProblems((s) => s.load);
+  const problemsReady = useProblems((s) => s.loaded);
   const {
     load: loadAuth,
     initialized,
@@ -81,7 +82,6 @@ export default function App() {
   }, []);
 
   const ready = initialized; // useAuth carregou
-  const problemsReady = useProblems.getState().loaded;
 
   if (!ready || !problemsReady) {
     return <LoadingScreen />;

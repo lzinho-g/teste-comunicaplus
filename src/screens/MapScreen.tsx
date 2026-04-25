@@ -4,6 +4,8 @@ import {
   View,
   StyleSheet,
   Animated,
+  Text,
+  Pressable,
 } from "react-native";
 import MapView, { Marker, Region } from "react-native-maps";
 import {
@@ -12,7 +14,6 @@ import {
   useNavigation,
   useRoute,
 } from "@react-navigation/native";
-import MapProblemCard from "../components/map/MapProblemCard";
 import * as Location from "expo-location";
 import { useProblems } from "../state/useProblems";
 import { useAuth } from "../state/useAuth";
@@ -27,6 +28,22 @@ import pinRed from "../../assets/pins/pin-red.png";
 const FOCUS_LAT_DELTA = 0.003;
 const FOCUS_LNG_DELTA = 0.003;
 const PIN_OFFSET_FACTOR = 0.25;
+
+function normalizeDescription(text: string | undefined | null) {
+  return (text ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .join(" ");
+}
+
+function shortDescription(text: string, expanded: boolean) {
+  const MAX = 80;
+
+  if (expanded || text.length <= MAX) return text;
+
+  return text.slice(0, MAX).trimEnd() + "…";
+}
 
 export default function MapScreen() {
   const { problems, vote } = useProblems();
@@ -181,6 +198,17 @@ export default function MapScreen() {
     [openCard]
   );
 
+  const closeCard = useCallback(() => {
+    Animated.timing(slideAnim, {
+      toValue: 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(() => {
+      setSelected(null);
+      setExpanded(false);
+    });
+  }, [slideAnim]);
+
   const MarkerItem = useCallback(
     React.memo(
       ({
@@ -257,22 +285,62 @@ export default function MapScreen() {
             },
           ]}
         >
-          <MapProblemCard
-            problem={selected}
-            address={getPrettyAddress(selected)}
-            isExpanded={expanded}
-            onToggleExpand={() => setExpanded((prev) => !prev)}
-            onOpenFeed={() =>
-              navigation.navigate("Feed", { focusId: selected.id })
-            }
-            onVote={async () => {
-              const userId = user?.email ?? null;
+          <Text style={styles.title}>{selected.title} • {selected.votes} votos</Text>
 
-              if (!userId) return;
+          {String(selected.status).toLowerCase() === "aberto" && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>Aberto</Text>
+            </View>
+          )}
 
-              await vote(selected.id, userId);
-            }}
-          />
+          <Text style={styles.meta}>
+            <Text style={styles.metaStrong}>Categoria: </Text>
+            {selected.category}
+          </Text>
+
+          <Text style={styles.meta}>
+            {getPrettyAddress(selected)} • {new Date(selected.createdAt).toLocaleString()}
+          </Text>
+
+          {normalizeDescription(selected.description) ? (
+            <>
+              <Text style={styles.description}>
+                {shortDescription(normalizeDescription(selected.description), expanded)}
+              </Text>
+
+              {normalizeDescription(selected.description).length > 80 && (
+                <Pressable onPress={() => setExpanded((prev) => !prev)}>
+                  <Text style={styles.moreText}>{expanded ? "Ver menos" : "Ver mais"}</Text>
+                </Pressable>
+              )}
+            </>
+          ) : null}
+
+          <View style={styles.actionsRow}>
+            <Pressable
+              style={[styles.button, styles.feedBtn]}
+              onPress={() => navigation.navigate("Feed", { focusId: selected.id })}
+            >
+              <Text style={styles.buttonText}>Ver no feed</Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.button, styles.voteBtn]}
+              onPress={async () => {
+                const userId = user?.email ?? null;
+
+                if (!userId) return;
+
+                await vote(selected.id, userId);
+              }}
+            >
+              <Text style={styles.buttonText}>Votar</Text>
+            </Pressable>
+
+            <Pressable style={[styles.button, styles.closeBtn]} onPress={closeCard}>
+              <Text style={styles.buttonText}>Fechar</Text>
+            </Pressable>
+          </View>
         </Animated.View>
       )}
     </View>
@@ -285,9 +353,77 @@ const styles = StyleSheet.create({
     bottom: 80,
     left: 10,
     right: 10,
+    backgroundColor: theme.colors.surface,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     shadowColor: "#000",
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: theme.colors.text,
+  },
+  badge: {
+    alignSelf: "flex-start",
+    marginTop: 4,
+    marginBottom: 6,
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  meta: {
+    marginTop: 2,
+    color: theme.colors.textMuted,
+  },
+  metaStrong: {
+    fontWeight: "700",
+    color: theme.colors.textMuted,
+  },
+  description: {
+    marginTop: 6,
+    color: theme.colors.text,
+  },
+  moreText: {
+    marginTop: 4,
+    color: theme.colors.primary,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  actionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    marginTop: 10,
+  },
+  button: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  feedBtn: {
+    backgroundColor: theme.colors.primary,
+  },
+  voteBtn: {
+    backgroundColor: theme.colors.primary,
+  },
+  closeBtn: {
+    backgroundColor: theme.colors.danger,
+  },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "700",
   },
 });

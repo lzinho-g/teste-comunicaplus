@@ -21,6 +21,7 @@ import { useProblemForm } from '../hooks/useProblemForm';
 import { useProblemImage } from '../hooks/useProblemImage';
 import { useProblemLocation } from '../hooks/useProblemLocation';
 import { ProblemInput } from '../domain/problemSchema';
+import { theme } from '../theme/theme';
 
 const CATEGORIES = [
   'Buraco',
@@ -133,6 +134,7 @@ export default function NewProblemScreen() {
                 <TextInput
                   style={[styles.input, errors.title && styles.inputError]}
                   placeholder="Ex.: Buraco grande na rua principal"
+                  placeholderTextColor={theme.colors.textMuted}
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
@@ -190,6 +192,7 @@ export default function NewProblemScreen() {
                 <TextInput
                   style={[styles.input, errors.city && styles.inputError]}
                   placeholder="Digite a cidade"
+                  placeholderTextColor={theme.colors.textMuted}
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
@@ -217,6 +220,7 @@ export default function NewProblemScreen() {
                 <TextInput
                   style={[styles.input, errors.neighborhood && styles.inputError]}
                   placeholder="Digite o bairro"
+                  placeholderTextColor={theme.colors.textMuted}
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
@@ -249,6 +253,7 @@ export default function NewProblemScreen() {
                       errors.description && styles.inputError,
                     ]}
                     placeholder="Descreva o problema com o máximo de detalhes possível"
+                    placeholderTextColor={theme.colors.textMuted}
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
@@ -381,7 +386,7 @@ export default function NewProblemScreen() {
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
-    backgroundColor: '#F7F8FA',
+    backgroundColor: theme.colors.bg,
   },
   container: {
     padding: 16,
@@ -390,12 +395,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1E293B',
+    color: theme.colors.text,
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 14,
-    color: '#64748B',
+    color: theme.colors.textMuted,
     marginBottom: 20,
   },
   section: {
@@ -404,79 +409,85 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#334155',
+    color: theme.colors.text,
     marginBottom: 8,
   },
   helperText: {
     fontSize: 12,
-    color: '#64748B',
+    color: theme.colors.textMuted,
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: theme.colors.border,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 14,
-    color: '#0F172A',
+    color: theme.colors.text,
   },
   textArea: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: theme.colors.border,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingTop: 12,
     paddingBottom: 12,
     fontSize: 14,
-    color: '#0F172A',
+    color: theme.colors.text,
   },
   inputError: {
-    borderColor: '#DC2626',
+    borderColor: theme.colors.danger,
   },
   errorText: {
     marginTop: 6,
     fontSize: 12,
-    color: '#DC2626',
+    color: theme.colors.danger,
   },
   counterText: {
     marginTop: 6,
     fontSize: 12,
-    color: '#64748B',
+    color: theme.colors.textMuted,
     textAlign: 'right',
   },
   pickerWrapper: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: theme.colors.border,
     borderRadius: 12,
     overflow: 'hidden',
   },
   picker: {
-    color: '#0F172A',
+    color: theme.colors.text,
   },
   map: {
     height: 220,
     borderRadius: 16,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   secondaryButton: {
-    backgroundColor: '#E2E8F0',
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
   },
   secondaryButtonHalf: {
     flex: 1,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     borderRadius: 12,
     paddingVertical: 12,
     alignItems: 'center',
   },
   secondaryButtonText: {
-    color: '#0F172A',
+    color: theme.colors.text,
     fontWeight: '600',
     fontSize: 14,
   },
@@ -487,17 +498,19 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 220,
     borderRadius: 16,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: theme.colors.card,
   },
   removeImageButton: {
     marginTop: 10,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.danger,
     borderRadius: 12,
     paddingVertical: 10,
     alignItems: 'center',
   },
   removeImageButtonText: {
-    color: '#B91C1C',
+    color: theme.colors.danger,
     fontWeight: '600',
   },
   imagePlaceholder: {
@@ -505,14 +518,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#CBD5E1',
-    backgroundColor: '#FFFFFF',
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,
   },
   imagePlaceholderText: {
-    color: '#64748B',
+    color: theme.colors.textMuted,
     fontSize: 14,
   },
   imageButtonsRow: {
@@ -526,19 +539,21 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
   },
   cancelButtonText: {
-    color: '#0F172A',
+    color: theme.colors.text,
     fontWeight: '700',
     fontSize: 14,
   },
   submitButton: {
     flex: 1,
-    backgroundColor: '#2563EB',
+    backgroundColor: theme.colors.primary,
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',

@@ -6,6 +6,11 @@ import {
   loadStoredProblems,
   saveStoredProblems,
 } from '../services/problemsStorage';
+import {
+  saveRemoteProblem,
+  loadRemoteProblems,
+  updateRemoteProblemVotes,
+} from '../services/problemsRemoteStorage';
 import { createProblem } from '../utils/problem';
 
 type AddProblemResult =
@@ -43,8 +48,40 @@ export const useProblems = create<Store>((set, get) => {
     loaded: false,
 
     async load() {
-      const problems = await loadStoredProblems();
-      set({ problems, loaded: true });
+      console.log('LOAD PROBLEMS: iniciou');
+
+      try {
+        const local = await loadStoredProblems();
+        console.log('LOAD PROBLEMS: local carregado', local.length);
+
+        try {
+          console.log('LOAD PROBLEMS: tentando Firebase');
+
+          const remote = await loadRemoteProblems();
+          console.log('LOAD PROBLEMS: remoto carregado', remote.length);
+
+          set({
+            problems: remote.length ? remote : local,
+            loaded: true,
+          });
+
+          console.log('LOAD PROBLEMS: finalizou (remoto/local)');
+        } catch (error) {
+          console.warn('LOAD PROBLEMS: erro Firebase, usando local', error);
+
+          set({
+            problems: local,
+            loaded: true,
+          });
+        }
+      } catch (error) {
+        console.error('LOAD PROBLEMS: erro geral', error);
+
+        set({
+          problems: [],
+          loaded: true,
+        });
+      }
     },
 
     async persist() {
@@ -73,7 +110,14 @@ export const useProblems = create<Store>((set, get) => {
         const newProblem = await createProblem(input);
         const updated = [newProblem, ...get().problems];
 
-        await updateProblems(updated);
+        await saveStoredProblems(updated);
+        set({ problems: updated });
+
+        try {
+          await saveRemoteProblem(newProblem);
+        } catch (error) {
+          console.warn('Erro ao salvar no Firebase:', error);
+        }
 
         return { ok: true, problem: newProblem };
       } catch (error) {
@@ -109,7 +153,21 @@ export const useProblems = create<Store>((set, get) => {
             : item
         );
 
+        const updatedProblem = updated.find((item) => item.id === id);
+
         await updateProblems(updated);
+
+        if (updatedProblem) {
+          try {
+            await updateRemoteProblemVotes(
+              updatedProblem.id,
+              updatedProblem.votes,
+              updatedProblem.votedBy
+            );
+          } catch (error) {
+            console.warn('Erro ao atualizar voto no Firebase:', error);
+          }
+        }
 
         return { ok: true };
       } catch (error) {

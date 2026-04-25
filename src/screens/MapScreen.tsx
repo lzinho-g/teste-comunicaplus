@@ -20,6 +20,7 @@ import { useAuth } from "../state/useAuth";
 import type { Problem } from "../domain/problem";
 import { theme } from "../theme/theme";
 import { RootTabParamList } from "../navigation/types";
+import { StatusBadge } from "../components/StatusBadge";
 
 
 import pinBlue from "../../assets/pins/pin-blue.png";
@@ -286,12 +287,7 @@ export default function MapScreen() {
           ]}
         >
           <Text style={styles.title}>{selected.title} • {selected.votes} votos</Text>
-
-          {String(selected.status).toLowerCase() === "aberto" && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Aberto</Text>
-            </View>
-          )}
+          <StatusBadge status={selected.status} />
 
           <Text style={styles.meta}>
             <Text style={styles.metaStrong}>Categoria: </Text>
@@ -367,20 +363,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     color: theme.colors.text,
-  },
-  badge: {
-    alignSelf: "flex-start",
-    marginTop: 4,
-    marginBottom: 6,
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  badgeText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "700",
   },
   meta: {
     marginTop: 2,

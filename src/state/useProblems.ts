@@ -10,6 +10,7 @@ import {
   saveRemoteProblem,
   loadRemoteProblems,
   updateRemoteProblemVotes,
+  listenRemoteProblems,
 } from '../services/problemsRemoteStorage';
 import { createProblem } from '../utils/problem';
 
@@ -29,6 +30,7 @@ type Store = {
   problems: Problem[];
   loaded: boolean;
   load: () => Promise<void>;
+  startRemoteListener: () => () => void;
   persist: () => Promise<{ ok: true } | { ok: false; message: string }>;
   updateProblem: (id: string, data: Partial<Problem>) => Promise<void>;
   addProblem: (input: ProblemInput) => Promise<AddProblemResult>;
@@ -82,6 +84,22 @@ export const useProblems = create<Store>((set, get) => {
           loaded: true,
         });
       }
+    },
+
+    startRemoteListener() {
+      return listenRemoteProblems(
+        async (remoteProblems) => {
+          await saveStoredProblems(remoteProblems);
+
+          set({
+            problems: remoteProblems,
+            loaded: true,
+          });
+        },
+        () => {
+          set({ loaded: true });
+        }
+      );
     },
 
     async persist() {

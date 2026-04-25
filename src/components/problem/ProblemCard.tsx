@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { Problem } from "../../domain/problem";
 import { theme } from "../../theme/theme";
+import { StatusBadge } from "../StatusBadge";
 
 type Props = {
   problem: Problem;
@@ -38,17 +39,11 @@ function ProblemCard({
 }: Props) {
   const normalizedDesc = normalizeDescription(problem.description);
   const showMoreButton = normalizedDesc.length > 80;
-  const isOpen = String(problem.status).toLowerCase() === "aberto";
 
   return (
     <View style={styles.card}>
       <Text style={styles.title}>{problem.title}</Text>
-
-      {isOpen && (
-        <View style={styles.statusBadge}>
-          <Text style={styles.statusBadgeText}>Aberto</Text>
-        </View>
-      )}
+      <StatusBadge status={problem.status} />
 
       <Text style={styles.meta}>
         <Text style={{ fontWeight: "700" }}>Categoria: </Text>
@@ -168,23 +163,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: theme.colors.text,
   },
-
-  statusBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginTop: 4,
-    marginBottom: 4,
-  },
-
-  statusBadgeText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 12,
-  },
-
   meta: {
     color: theme.colors.textMuted,
     marginTop: 2,

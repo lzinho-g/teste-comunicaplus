@@ -7,27 +7,25 @@ import {
   doc,
   query,
   where,
+  onSnapshot,
 } from "firebase/firestore";
 import { Problem } from "../domain/problem";
 
 const COLLECTION = "problems";
 
-// salvar problema no firebase
 export async function saveRemoteProblem(problem: Problem) {
   await addDoc(collection(db, COLLECTION), problem);
 }
 
-// buscar todos os problemas
 export async function loadRemoteProblems(): Promise<Problem[]> {
   const snapshot = await getDocs(collection(db, COLLECTION));
 
-  return snapshot.docs.map((doc) => ({
-    ...(doc.data() as Problem),
-    id: doc.id,
+  return snapshot.docs.map((document) => ({
+    ...(document.data() as Problem),
+    firebaseDocId: document.id,
   }));
 }
 
-// atualizar status
 export async function updateRemoteStatus(
   id: string,
   status: Problem["status"]
@@ -56,4 +54,25 @@ export async function updateRemoteProblemVotes(
     votes,
     votedBy,
   });
+}
+
+export function listenRemoteProblems(
+  onChange: (problems: Problem[]) => void,
+  onError?: (error: unknown) => void
+) {
+  return onSnapshot(
+    collection(db, COLLECTION),
+    (snapshot) => {
+      const problems = snapshot.docs.map((document) => ({
+        ...(document.data() as Problem),
+        firebaseDocId: document.id,
+      }));
+
+      onChange(problems);
+    },
+    (error) => {
+      console.warn("Erro ao escutar problemas no Firebase:", error);
+      onError?.(error);
+    }
+  );
 }

@@ -68,6 +68,7 @@ function AuthStack() {
 
 export default function App() {
   const loadProblems = useProblems((s) => s.load);
+  const startRemoteListener = useProblems((s) => s.startRemoteListener);
   const problemsReady = useProblems((s) => s.loaded);
   const {
     load: loadAuth,
@@ -79,7 +80,13 @@ export default function App() {
   useEffect(() => {
     loadProblems();
     loadAuth();
-  }, []);
+
+    const unsubscribe = startRemoteListener();
+
+    return () => {
+      unsubscribe();
+    };
+  }, [loadProblems, loadAuth, startRemoteListener]);
 
   const ready = initialized; // useAuth carregou
 
